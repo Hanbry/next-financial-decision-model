@@ -18,13 +18,13 @@ import agents.agent_ppo as agent_ppo
 import models.ppo_actor_critic_model as ppo_actor_critic_model
 
 # Configure hyperparameters
-num_environment_steps = 250000 #25000000  # Number of training steps
-collect_episodes_per_iteration = 30  # Number of episodes to collect per iteration
+num_environment_steps = 25000000  # Number of training steps
+collect_episodes_per_iteration = 2  # Number of episodes to collect per iteration
 replay_buffer_capacity = 1001  # Replay buffer capacity
 learning_rate = 1e-3  # Learning rate
-num_parallel_environments = 1
+num_parallel_environments = 4
 num_epochs = 25
-num_eval_episodes = 30
+num_eval_episodes = 10
 summary_interval = 50
 eval_interval = 500
 log_interval = 50
@@ -56,15 +56,10 @@ def train(data):
     global_step = tf.compat.v1.train.get_or_create_global_step()
 
     # Create Environments
-    train_py_env, eval_py_env, train_env, eval_env = create_environment(data)
-    # tf_env = tf_py_environment.TFPyEnvironment(
-    #     parallel_py_environment.ParallelPyEnvironment(
-    #         [lambda: env_load_fn(env_name)] * num_parallel_environments
-    #     )
-    # )
+    train_env, eval_env = create_environment(data, num_parallel_environments)
 
     # Create Model
-    (actor_net, value_net) = ppo_actor_critic_model.create_model(train_py_env)
+    (actor_net, value_net) = ppo_actor_critic_model.create_model(train_env)
 
     # Create Agent
     agent = agent_ppo.create_agent(train_env, actor_net, value_net, learning_rate, num_epochs, global_step)
@@ -150,7 +145,6 @@ def train(data):
 
         start_time = time.time()
         total_loss, _ = train_step()
-        train_env.render(mode = 'human')
         print("trained agent")
         replay_buffer.clear()
         train_time += time.time() - start_time

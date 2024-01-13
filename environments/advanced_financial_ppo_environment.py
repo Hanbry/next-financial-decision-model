@@ -1,14 +1,16 @@
 import numpy as np
 import pandas as pd
+import random
+import string
 import matplotlib.pyplot as plt
 import tf_agents
 
-import random
-import string
-
+from multiprocessing import Lock
 from enum import Enum
+
 from tf_agents.environments import py_environment
 from tf_agents.environments import tf_py_environment
+from tf_agents.environments import parallel_py_environment
 from tf_agents.trajectories import time_step as ts
 
 class Action(Enum):
@@ -16,7 +18,7 @@ class Action(Enum):
     SELL = 1
     HOLD = 2
 
-maximum_steps = 3000
+maximum_steps = 1000
 initial_capital = 400
 
 class FinancialEnvironment(py_environment.PyEnvironment):
@@ -71,7 +73,7 @@ class FinancialEnvironment(py_environment.PyEnvironment):
             self.buy_price = current_price
             self.last_action = 0
             self.steps_on_hold = 0
-            self.shares = (self.capital/current_price)*(1-self.fee)
+            self.shares += (self.capital/current_price)*(1-self.fee)
             self.capital = 0
             self.buy_idxs.append(self.current_step)
 
@@ -80,7 +82,7 @@ class FinancialEnvironment(py_environment.PyEnvironment):
             self.sell_price = current_price
             self.last_action = 1
             self.steps_on_hold = 0
-            self.capital = (self.shares*current_price)*(1-self.fee)
+            self.capital += (self.shares*current_price)*(1-self.fee)
             self.shares = 0
             self.sell_idxs.append(self.current_step)
 
@@ -93,11 +95,11 @@ class FinancialEnvironment(py_environment.PyEnvironment):
 
         # Normal sell after buy
         if self.last_action == Action.BUY.value and action == Action.SELL.value:
-            reward = (self.capital - initial_capital) / initial_capital
+            reward = ((self.capital - initial_capital) / initial_capital) * 100
 
         # Normal buy after sell
         elif self.last_action == Action.SELL.value and action == Action.BUY.value:
-            reward = (current_price - self.sell_price) / self.sell_price
+            reward = ((current_price - self.sell_price) / self.sell_price) * 100
 
         # Hold after buy
         elif action == Action.HOLD.value and self.shares > 0:
@@ -109,7 +111,16 @@ class FinancialEnvironment(py_environment.PyEnvironment):
 
         # Initial buy
         elif action == Action.BUY.value and self.last_action == -1:
-            reward = 1
+            reward = 10
+
+        elif action == Action.SELL.value and self.last_action == -1:
+            reward = -10
+
+        elif action == Action.BUY.value and self.last_action == Action.BUY.value:
+            reward = -10
+
+        elif action == Action.SELL.value and self.last_action == Action.SELL.value:
+            reward = -10
 
         else:
             reward = 0
@@ -120,20 +131,20 @@ class FinancialEnvironment(py_environment.PyEnvironment):
         reward -= trade_penalty
 
         # Apply holding penatly
-        reward -= self.steps_on_hold * 0.01
+        reward -= self.steps_on_hold
 
         return reward
 
     def _step(self, action):
         current_price = self.df.loc[self.current_step, "close"]
-        reward = self._calculate_reward(action, current_price)
         self._take_action(action)
+        reward = self._calculate_reward(action, current_price)
         self.current_step += 1
         self.step_counter += 1
 
         money_loss_condition = (self.capital <= (initial_capital * 0.5) and self.shares <= 0) or ((self.shares * current_price) <= (initial_capital * 0.5) and self.capital <= 0)
         invalid_sequence_condition = (action == Action.BUY.value and self.last_action == Action.BUY.value) or (action == Action.SELL.value and self.last_action == Action.SELL.value)
-        early_termination = money_loss_condition or invalid_sequence_condition
+        early_termination = money_loss_condition # or invalid_sequence_condition
         done = (self.current_step >= len(self.df)-1) or (self.step_counter >= maximum_steps)
         
         obs = self._next_observation()
@@ -141,25 +152,18 @@ class FinancialEnvironment(py_environment.PyEnvironment):
         if not done and not early_termination:
             return ts.transition(obs, reward = reward, discount = 1.0)
         
-        elif self.steps_beyond_done is None and done and not early_termination:
-            print('actions: buy = {0}; sell = {1}; hold = {2}'.format(self.buy_actions, self.sell_actions, self.hold_actions))
-            self.steps_beyond_done = 0
-            return ts.transition(obs, reward = reward, discount = 1.0)
-        
-        elif self.steps_beyond_done is not None and done and not early_termination:
-            # print("send termination step ", self.steps_beyond_done)
-            self.steps_beyond_done += 1
+        elif done and not early_termination:
+            print('END capital: {0}$ actions: buy = {1}; sell = {2}; hold = {3}'.format(self.capital+(self.shares*current_price), self.buy_actions, self.sell_actions, self.hold_actions))
             self._soft_reset()
-            return ts.termination(obs, reward=reward)
+            return ts.termination(obs, reward = reward)
         
         else:
-            # print("early termination: ", str(early_termination))
-            # print('actions: buy = {0}; sell = {1}; hold = {2}'.format(self.buy_actions, self.sell_actions, self.hold_actions))
+            print(str(early_termination), 'TERM capital: {0}$ actions: buy = {1}; sell = {2}; hold = {3}'.format(self.capital+(self.shares*current_price), self.buy_actions, self.sell_actions, self.hold_actions))
             self._soft_reset()
-            return ts.termination(obs, reward=reward)
+            return ts.termination(obs, reward = reward)
 
     def _soft_reset(self):
-        print("internally resetting environment")
+        # print("internally resetting environment")
         self._render_offset = self._start_offset
         self._start_offset = np.random.randint(1, len(self.df)-1-maximum_steps)
         self.step_counter = 0
@@ -186,7 +190,7 @@ class FinancialEnvironment(py_environment.PyEnvironment):
         self.sell_idxs = []
 
     def _reset(self):
-        print("externally resetting environment")
+        # print("externally resetting environment")
         self._render_offset = self._start_offset
         self._start_offset = np.random.randint(1, len(self.df)-1-maximum_steps)
         self.step_counter = 0
@@ -220,35 +224,36 @@ class FinancialEnvironment(py_environment.PyEnvironment):
     def action_spec(self):
         return tf_agents.specs.BoundedTensorSpec(shape=(), dtype=np.int32, minimum=0, maximum=len(Action)-1, name='action')
     
-    def render(self, mode='human'):
-        if mode == 'human':
-            plt.ioff()  # Turn off interactive mode to prevent displaying the plot
-            plt.figure(figsize=(32,18))
+    def render(self):
+        plt.ioff()
+        plt.figure(figsize=(32,18))
+        
+        plt.plot(self.df['close'][self._render_offset:self._render_offset+maximum_steps], label='Close Price', color='blue', alpha=0.5)
+
+        for idx in self._render_buy_idxs:
+            plt.scatter(idx, self.df.loc[idx, 'close'], color='green')
             
-            plt.plot(self.df['close'][self._render_offset:self._render_offset+maximum_steps], label='Close Price', color='blue', alpha=0.5)
+        for idx in self._render_sell_idxs:
+            plt.scatter(idx, self.df.loc[idx, 'close'], color='red')
+        
+        plt.title('Stock Price with Buy and Sell Actions')
+        plt.legend()
 
-            for idx in self._render_buy_idxs:
-                plt.scatter(idx, self.df.loc[idx, 'close'], color='green')
-                
-            for idx in self._render_sell_idxs:
-                plt.scatter(idx, self.df.loc[idx, 'close'], color='red')
-            
-            plt.title('Stock Price with Buy and Sell Actions')
-            plt.legend()
+        id = ''.join(random.choices(string.ascii_letters + string.digits, k=4))
 
-            id = ''.join(random.choices(string.ascii_letters + string.digits, k=4))
-
-            plt.savefig(f"results/{str(self._render_offset)}-{id}-actions.png")
-            plt.close()
+        plt.savefig(f"results/{str(self._render_offset)}-{id}-actions.png")
+        plt.close()
 
     def evaluate_reward_function(self, action):
         pass
 
 
-def create_environment(data):
-    train_py_env = FinancialEnvironment(data)
-    eval_py_env = FinancialEnvironment(data)
-    train_env = tf_py_environment.TFPyEnvironment(train_py_env)
-    eval_env = tf_py_environment.TFPyEnvironment(eval_py_env)
+def create_environment(data, num_parallel_environments):
+    eval_env = tf_py_environment.TFPyEnvironment(FinancialEnvironment(data))
+    train_env = tf_py_environment.TFPyEnvironment(
+        parallel_py_environment.ParallelPyEnvironment(
+            [lambda: FinancialEnvironment(data) for _ in range(num_parallel_environments)]
+        )
+    )
 
-    return (train_py_env, eval_py_env, train_env, eval_env)
+    return (train_env, eval_env)

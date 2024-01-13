@@ -1,20 +1,21 @@
+import functools
+import os
 import sys
 import pandas as pd
-import os
-import argparse
 import shutil
 import questionary
 from rich.console import Console
 from rich.panel import Panel
+from tf_agents.system import system_multiprocessing as multiprocessing
+from absl import app, flags
 
 import experiments.experiment_ppo as experiment_ppo
 
-def main():
-    parser = argparse.ArgumentParser(description = 'Next-Financial-Decision-Model')
-    parser.add_argument('--clean-run', action = 'store_true', help = 'If specified, clean the checkpoints and results folders before running')
-    args = parser.parse_args()
+FLAGS = flags.FLAGS
+flags.DEFINE_boolean('clean_run', False, 'Clean the checkpoints and results folders before running')
 
-    if args.clean_run:
+def main(_):
+    if FLAGS.clean_run:
         for folder in ['checkpoints', 'results']:
             for filename in os.listdir(folder):
                 file_path = os.path.join(folder, filename)
@@ -69,4 +70,4 @@ def main():
     sys.exit()
 
 if __name__ == "__main__":
-    main()
+    multiprocessing.handle_main(functools.partial(app.run, main))
