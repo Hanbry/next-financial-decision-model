@@ -19,7 +19,7 @@ import models.ppo_actor_critic_model as ppo_actor_critic_model
 
 # Configure hyperparameters
 num_environment_steps = 250000 #25000000  # Number of training steps
-collect_episodes_per_iteration = 1  # Number of episodes to collect per iteration
+collect_episodes_per_iteration = 30  # Number of episodes to collect per iteration
 replay_buffer_capacity = 1001  # Replay buffer capacity
 learning_rate = 1e-3  # Learning rate
 num_parallel_environments = 1
@@ -52,7 +52,6 @@ def train(data):
         tf_metrics.AverageReturnMetric(buffer_size=num_eval_episodes),
         tf_metrics.AverageEpisodeLengthMetric(buffer_size=num_eval_episodes),
     ]
-
 
     global_step = tf.compat.v1.train.get_or_create_global_step()
 
@@ -151,6 +150,7 @@ def train(data):
 
         start_time = time.time()
         total_loss, _ = train_step()
+        train_env.render(mode = 'human')
         print("trained agent")
         replay_buffer.clear()
         train_time += time.time() - start_time
