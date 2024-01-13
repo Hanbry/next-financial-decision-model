@@ -1,13 +1,31 @@
 import sys
-import questionary
 import pandas as pd
 import os
+import argparse
+import shutil
+import questionary
 from rich.console import Console
 from rich.panel import Panel
 
 import experiments.experiment_ppo as experiment_ppo
 
 def main():
+    parser = argparse.ArgumentParser(description = 'Next-Financial-Decision-Model')
+    parser.add_argument('--clean-run', action = 'store_true', help = 'If specified, clean the checkpoints and results folders before running')
+    args = parser.parse_args()
+
+    if args.clean_run:
+        for folder in ['checkpoints', 'results']:
+            for filename in os.listdir(folder):
+                file_path = os.path.join(folder, filename)
+                try:
+                    if os.path.isfile(file_path) or os.path.islink(file_path):
+                        os.unlink(file_path)
+                    elif os.path.isdir(file_path):
+                        shutil.rmtree(file_path)
+                except Exception as e:
+                    print('Failed to delete %s. Reason: %s' % (file_path, e))
+
     console = Console()
 
     header_panel = Panel(
