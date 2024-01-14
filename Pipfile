@@ -5,7 +5,6 @@ name = "pypi"
 
 [packages]
 tf-agents = "*"
-tensorflow = "*"
 numpy = "*"
 matplotlib = "*"
 pandas = "*"
@@ -13,13 +12,12 @@ datetime = "*"
 questionary = "*"
 prompt-toolkit = "*"
 rich = "*"
-tensorflow-metal = "*"
 tensorboard = "*"
 mplfinance = "*"
-mujoco-py = "*"
+tensorflow = {extras = ["and-cuda"], version = "*"}
 
 [dev-packages]
 
 [requires]
 python_version = "3.11"
-python_full_version = "3.11.6"
+python_full_version = "3.11.7"
