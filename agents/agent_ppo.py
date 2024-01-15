@@ -2,7 +2,7 @@ import tensorflow as tf
 from tf_agents.agents.ppo import ppo_agent
 
 def create_agent(env, actor_net, value_net, learning_rate, num_epochs, global_step):
-    optimizer = tf.keras.optimizers.legacy.Adam(learning_rate=learning_rate)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
 
     agent = ppo_agent.PPOAgent(
         env.time_step_spec(),
