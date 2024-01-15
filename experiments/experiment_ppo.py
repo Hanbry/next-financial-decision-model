@@ -111,6 +111,7 @@ def train(data):
 
     def train_step():
         trajectories = replay_buffer.gather_all()
+        train_env.render()
         return agent.train(experience=trajectories)
     
     collect_driver.run = common.function(collect_driver.run, autograph=False)
