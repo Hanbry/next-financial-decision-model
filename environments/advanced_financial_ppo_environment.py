@@ -19,7 +19,6 @@ class Action(Enum):
     HOLD = 2
 
 maximum_steps = 1000
-initial_capital = 400
 
 class FinancialEnvironment(py_environment.PyEnvironment):
     def __init__(self, data):
@@ -38,8 +37,7 @@ class FinancialEnvironment(py_environment.PyEnvironment):
         self.fee = 0.2/100
         self.last_action = -1
         self.steps_on_hold = 0
-        self.capital = initial_capital
-        self.shares = 0
+        self.cum_profit = 0
 
         self.buy_actions = 0
         self.sell_actions = 0
@@ -73,8 +71,6 @@ class FinancialEnvironment(py_environment.PyEnvironment):
             self.buy_price = current_price
             self.last_action = 0
             self.steps_on_hold = 0
-            self.shares += (self.capital/current_price)*(1-self.fee)
-            self.capital = 0
             self.buy_idxs.append(self.current_step)
 
         elif action == Action.SELL.value:
@@ -82,8 +78,6 @@ class FinancialEnvironment(py_environment.PyEnvironment):
             self.sell_price = current_price
             self.last_action = 1
             self.steps_on_hold = 0
-            self.capital += (self.shares*current_price)*(1-self.fee)
-            self.shares = 0
             self.sell_idxs.append(self.current_step)
 
         else: # action == Action.HOLD.value
@@ -95,15 +89,16 @@ class FinancialEnvironment(py_environment.PyEnvironment):
 
         # Normal sell after buy
         if self.last_action == Action.BUY.value and action == Action.SELL.value:
-            reward = ((self.capital - initial_capital) / initial_capital) * 100
+            reward = ((current_price - self.buy_price) / self.buy_price) - self.fee
+            self.cum_profit += ((current_price - self.buy_price) / self.buy_price)
 
         # Normal buy after sell
         elif self.last_action == Action.SELL.value and action == Action.BUY.value:
-            reward = ((current_price - self.sell_price) / self.sell_price) * 100
+            reward = ((self.sell_price - current_price) / self.sell_price) - self.fee
 
         # Hold after buy
-        elif action == Action.HOLD.value and self.shares > 0:
-            reward = ((current_price - self.buy_price) / self.buy_price) * 0.2
+        elif action == Action.HOLD.value and self.last_action == Action.BUY.value:
+            reward = 0 #((current_price - self.buy_price) / self.buy_price) * 0.2
         
         # Hold after sell
         elif action == Action.HOLD.value and self.last_action == Action.SELL.value:
@@ -111,27 +106,27 @@ class FinancialEnvironment(py_environment.PyEnvironment):
 
         # Initial buy
         elif action == Action.BUY.value and self.last_action == -1:
-            reward = 10
+            reward = 1
 
         elif action == Action.SELL.value and self.last_action == -1:
-            reward = -10
+            reward = -1
 
         elif action == Action.BUY.value and self.last_action == Action.BUY.value:
-            reward = -10
+            reward = -1
 
         elif action == Action.SELL.value and self.last_action == Action.SELL.value:
-            reward = -10
+            reward = -1
 
         else:
             reward = 0
 
         # Apply trade penalty
-        num_trades = self.buy_actions + self.sell_actions
-        trade_penalty = (num_trades ** 2) / 1000
-        reward -= trade_penalty
+        # num_trades = self.buy_actions + self.sell_actions
+        # trade_penalty = (num_trades ** 2) / 1000
+        # reward -= trade_penalty
 
         # Apply holding penatly
-        reward -= self.steps_on_hold
+        # reward -= self.steps_on_hold
 
         return reward
 
@@ -142,7 +137,7 @@ class FinancialEnvironment(py_environment.PyEnvironment):
         self.current_step += 1
         self.step_counter += 1
 
-        money_loss_condition = (self.capital <= (initial_capital * 0.5) and self.shares <= 0) or ((self.shares * current_price) <= (initial_capital * 0.5) and self.capital <= 0)
+        money_loss_condition = self.cum_profit <= -50
         invalid_sequence_condition = (action == Action.BUY.value and self.last_action == Action.BUY.value) or (action == Action.SELL.value and self.last_action == Action.SELL.value)
         early_termination = money_loss_condition # or invalid_sequence_condition
         done = (self.current_step >= len(self.df)-1) or (self.step_counter >= maximum_steps)
@@ -153,12 +148,12 @@ class FinancialEnvironment(py_environment.PyEnvironment):
             return ts.transition(obs, reward = reward, discount = 1.0)
         
         elif done and not early_termination:
-            print('END capital: {0}$ actions: buy = {1}; sell = {2}; hold = {3}'.format(self.capital+(self.shares*current_price), self.buy_actions, self.sell_actions, self.hold_actions))
+            print('END profit: {0} p actions: buy = {1}; sell = {2}; hold = {3}'.format(self.cum_profit * 100, self.buy_actions, self.sell_actions, self.hold_actions))
             self._soft_reset()
             return ts.termination(obs, reward = reward)
         
         else:
-            print(str(early_termination), 'TERM capital: {0}$ actions: buy = {1}; sell = {2}; hold = {3}'.format(self.capital+(self.shares*current_price), self.buy_actions, self.sell_actions, self.hold_actions))
+            print(str(early_termination), 'TERM profit: {0}p actions: buy = {1}; sell = {2}; hold = {3}'.format(self.cum_profit * 100, self.buy_actions, self.sell_actions, self.hold_actions))
             self._soft_reset()
             return ts.termination(obs, reward = reward)
 
@@ -176,8 +171,7 @@ class FinancialEnvironment(py_environment.PyEnvironment):
         self.fee = 0.2/100
         self.last_action = Action.SELL
         self.steps_on_hold = 0
-        self.capital = initial_capital
-        self.shares = 0
+        self.cum_profit = 0
 
         self.buy_actions = 0
         self.sell_actions = 0
@@ -203,8 +197,7 @@ class FinancialEnvironment(py_environment.PyEnvironment):
         self.fee = 0.2/100
         self.last_action = Action.SELL
         self.steps_on_hold = 0
-        self.capital = initial_capital
-        self.shares = 0
+        self.cum_profit = 0
 
         self.buy_actions = 0
         self.sell_actions = 0
