@@ -11,7 +11,7 @@ def create_agent(env, actor_net, value_net, learning_rate, num_epochs, global_st
         actor_net = actor_net,
         value_net = value_net,
         entropy_regularization = 0.0,
-        normalize_observations = False,
+        normalize_observations = True,
         normalize_rewards = False,
         use_gae = True,
         num_epochs = num_epochs,

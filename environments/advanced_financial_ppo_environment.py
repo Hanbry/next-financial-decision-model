@@ -54,11 +54,11 @@ class FinancialEnvironment(py_environment.PyEnvironment):
         obs = np.empty(6, dtype=np.float32)
         cur_idx = self.current_step
         obs = np.array([
-            (self.df.loc[cur_idx, 'open']-self.df.loc[cur_idx, 'open'])/self.df.loc[cur_idx, 'open'],
-            (self.df.loc[cur_idx, 'close']-self.df.loc[cur_idx, 'close'])/self.df.loc[cur_idx, 'close'],
-            (self.df.loc[cur_idx, 'high']-self.df.loc[cur_idx, 'high'])/self.df.loc[cur_idx, 'high'],
-            (self.df.loc[cur_idx, 'low']-self.df.loc[cur_idx, 'low'])/self.df.loc[cur_idx, 'low'],
-            (self.df.loc[cur_idx, 'volume']-self.df.loc[cur_idx, 'volume'])/self.df.loc[cur_idx, 'volume'] if self.df.loc[cur_idx, 'volume'] else 0,
+            self.df.loc[cur_idx, 'open'],
+            self.df.loc[cur_idx, 'close'],
+            self.df.loc[cur_idx, 'high'],
+            self.df.loc[cur_idx, 'low'],
+            self.df.loc[cur_idx, 'volume'] if self.df.loc[cur_idx, 'volume'] else 0,
             self.df.loc[cur_idx, 'time']
         ], dtype = np.float32)
 
@@ -239,7 +239,7 @@ class FinancialEnvironment(py_environment.PyEnvironment):
         id = ''.join(random.choices(string.ascii_letters + string.digits, k=4))
         filename = f"results/{str(self._render_offset)}-{id}-actions.png"
 
-        plt.savefig(f"results/{str(self._render_offset)}-{id}-actions.png")
+        plt.savefig(filename)
         plt.close()
 
     def evaluate_reward_function(self, action):
