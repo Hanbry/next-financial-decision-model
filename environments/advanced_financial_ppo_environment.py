@@ -2,11 +2,15 @@ import numpy as np
 import pandas as pd
 import random
 import string
+import matplotlib
+matplotlib.use('Agg')  # Verwenden Sie den nicht-interaktiven Backend 'Agg'
 import matplotlib.pyplot as plt
+
 import tf_agents
 
-from multiprocessing import Lock
+from queue import Queue
 from enum import Enum
+import os
 
 from tf_agents.environments import py_environment
 from tf_agents.environments import tf_py_environment
@@ -20,10 +24,13 @@ class Action(Enum):
     INITIAL = 3
 
 maximum_steps = 1000
+image_data_queue = Queue()
 
 class FinancialEnvironment(py_environment.PyEnvironment):
     def __init__(self, data):
         super(FinancialEnvironment, self).__init__()
+        self.render_buf = []
+
         self.df = data
         self.current_step = 0
         self._start_offset = np.random.randint(1, len(data)-1-maximum_steps)
@@ -137,13 +144,14 @@ class FinancialEnvironment(py_environment.PyEnvironment):
 
         current_price = self.df.loc[self.current_step, "close"]
         reward = self._calculate_reward(action, current_price)
-        self._take_action(action)
-        self.current_step += 1
-        self.step_counter += 1
-
         money_loss_condition = self.cum_profit <= -50
         invalid_sequence_condition = (action == Action.BUY and self.last_action == Action.BUY) or (action == Action.SELL and self.last_action == Action.SELL)
         early_termination = money_loss_condition # or invalid_sequence_condition
+        self.current_step += 1
+        self.step_counter += 1
+        
+        self._take_action(action)
+
         done = (self.current_step >= len(self.df)-1) or (self.step_counter >= maximum_steps)
         
         obs = self._next_observation()
@@ -152,18 +160,20 @@ class FinancialEnvironment(py_environment.PyEnvironment):
             return ts.transition(obs, reward = reward, discount = 1.0)
         
         elif done and not early_termination:
-            print('END profit: {0}p actions: buy = {1}; sell = {2}; hold = {3}'.format(self.cum_profit * 100, self.buy_actions, self.sell_actions, self.hold_actions))
+            print('END profit: {0:.2f}% actions: buy = {1}; sell = {2}; hold = {3}'.format(self.cum_profit * 100, self.buy_actions, self.sell_actions, self.hold_actions))
             self._soft_reset()
             return ts.termination(obs, reward = reward)
         
         else:
-            print(str(early_termination), 'TERM profit: {0}p actions: buy = {1}; sell = {2}; hold = {3}'.format(self.cum_profit * 100, self.buy_actions, self.sell_actions, self.hold_actions))
+            print(str(early_termination), 'TERM profit: {0:.2f}% actions: buy = {1}; sell = {2}; hold = {3}'.format(self.cum_profit * 100, self.buy_actions, self.sell_actions, self.hold_actions))
             self._soft_reset()
             return ts.termination(obs, reward = reward)
 
     def _soft_reset(self):
         # print("internally resetting environment")
         self._render_offset = self._start_offset
+        self.prepare_render_data()
+
         self._start_offset = np.random.randint(1, len(self.df)-1-maximum_steps)
         self.step_counter = 0
         self.current_step = self._start_offset
@@ -221,30 +231,45 @@ class FinancialEnvironment(py_environment.PyEnvironment):
     def action_spec(self):
         return tf_agents.specs.BoundedTensorSpec(shape=(), dtype=np.int32, minimum=0, maximum=len(Action)-2, name='action')
     
+    def prepare_render_data(self):
+        data_buf = {
+            'buy_idxs': self.buy_idxs,
+            'sell_idxs': self.sell_idxs,
+            'prices': self.df['close'][self._render_offset:self._render_offset+maximum_steps].tolist(),
+            'close' : self.df['close'].tolist(),
+            'offset': self._render_offset
+        }
+        image_data_queue.put(data_buf)
+
     def render(self):
-        plt.ioff()
-        plt.figure(figsize=(32,18))
-        
-        plt.plot(self.df['close'][self._render_offset:self._render_offset+maximum_steps], label='Close Price', color='blue', alpha=0.5)
+        while True:
+            data_buf = image_data_queue.get()
+            if data_buf is None:
+                break
 
-        for idx in self._render_buy_idxs:
-            plt.scatter(idx, self.df.loc[idx, 'close'], color='green')
+            plt.ioff()
+            plt.figure(figsize=(32,18))
+
+            plt.plot(data_buf["prices"], label='Close Price', color='blue', alpha=0.5)
+
+            for idx in data_buf["buy_idxs"]:
+                plt.scatter(idx-data_buf["offset"], data_buf["close"][idx], color='green')
+
+            for idx in data_buf["sell_idxs"]:
+                plt.scatter(idx-data_buf["offset"], data_buf["close"][idx], color='red')
+
+            plt.title('Stock Price with Buy and Sell Actions')
+            plt.legend()
+
+            id = ''.join(random.choices(string.ascii_letters + string.digits, k=4))
+            filename = f"results/plots/{str(data_buf['offset'])}-{id}-actions.png"
             
-        for idx in self._render_sell_idxs:
-            plt.scatter(idx, self.df.loc[idx, 'close'], color='red')
-        
-        plt.title('Stock Price with Buy and Sell Actions')
-        plt.legend()
-
-        id = ''.join(random.choices(string.ascii_letters + string.digits, k=4))
-        filename = f"results/{str(self._render_offset)}-{id}-actions.png"
-
-        plt.savefig(filename)
-        plt.close()
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            plt.savefig(filename)
+            plt.close()
 
     def evaluate_reward_function(self, action):
         pass
-
 
 def create_environment(data, num_parallel_environments):
     eval_env = tf_py_environment.TFPyEnvironment(FinancialEnvironment(data))
