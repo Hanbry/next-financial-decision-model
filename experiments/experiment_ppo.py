@@ -111,7 +111,6 @@ def train(data):
 
     def train_step():
         trajectories = replay_buffer.gather_all()
-        train_env.render()
         return agent.train(experience=trajectories)
     
     collect_driver.run = common.function(collect_driver.run, autograph=False)
@@ -154,6 +153,7 @@ def train(data):
             train_metric.tf_summaries(train_step = global_step, step_metrics = step_metrics)
 
         if global_step_val % log_interval == 0:
+            train_env.render()
             print('step =', global_step_val, 'loss =', total_loss.numpy())
             steps_per_sec = (global_step_val - timed_at_step) / (collect_time + train_time)
             print(steps_per_sec, ' steps/sec')
