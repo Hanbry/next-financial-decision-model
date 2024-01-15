@@ -162,7 +162,6 @@ class FinancialEnvironment(py_environment.PyEnvironment):
             return ts.termination(obs, reward = reward)
 
     def _soft_reset(self):
-        images.append(self.render())
         # print("internally resetting environment")
         self._render_offset = self._start_offset
         self._start_offset = np.random.randint(1, len(self.df)-1-maximum_steps)
