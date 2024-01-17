@@ -243,7 +243,7 @@ class FinancialEnvironment(py_environment.PyEnvironment):
         }
         image_data_queue.put(data_buf)
 
-    def render(self):
+    def render(self, mode='human'):
         while not image_data_queue.empty():
             data_buf = image_data_queue.get()
 
