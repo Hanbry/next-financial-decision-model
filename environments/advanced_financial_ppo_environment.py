@@ -264,7 +264,7 @@ class FinancialEnvironment(py_environment.PyEnvironment):
 
             current_datetime = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             id = ''.join(random.choices(string.ascii_letters + string.digits, k=4))
-            filename = f"/mnt/nvme/plots/{str(data_buf['offset'])}-{current_datetime}-{id}-actions.png"
+            filename = f"/mnt/nvme/plots/{current_datetime}-{str(data_buf['offset'])}-{id}-actions.png"
 
             os.makedirs(os.path.dirname(filename), exist_ok=True)
             plt.savefig(filename)
