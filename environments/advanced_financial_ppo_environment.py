@@ -116,10 +116,10 @@ class FinancialEnvironment(py_environment.PyEnvironment):
             reward = 0 #((self.sell_price - current_price) / self.sell_price) * 0.2
 
         # Initial buy
-        elif action == Action.BUY and self.last_action == -1:
+        elif action == Action.BUY and self.last_action == Action.INITIAL:
             reward = 1
 
-        elif action == Action.SELL and self.last_action == -1:
+        elif action == Action.SELL and self.last_action == Action.INITIAL:
             reward = -1
 
         elif action == Action.BUY and self.last_action == Action.BUY:
@@ -147,7 +147,7 @@ class FinancialEnvironment(py_environment.PyEnvironment):
         current_price = self.df.loc[self.current_step, "close"]
         reward = self._calculate_reward(action, current_price)
         money_loss_condition = self.cum_profit <= -0.5
-        invalid_sequence_condition = (action == Action.BUY and self.last_action == Action.BUY) or (action == Action.SELL and self.last_action == Action.SELL)
+        invalid_sequence_condition = (action == Action.BUY and self.last_action == Action.BUY) or (action == Action.SELL and self.last_action == Action.SELL) or (action == Action.SELL and self.last_action == Action.INITIAL)
         early_termination = money_loss_condition or invalid_sequence_condition
         self.current_step += 1
         self.step_counter += 1
