@@ -262,7 +262,7 @@ class FinancialEnvironment(py_environment.PyEnvironment):
             plt.legend()
 
             id = ''.join(random.choices(string.ascii_letters + string.digits, k=4))
-            filename = f"/home/ubuntu/nvme/plots/{str(data_buf['offset'])}-{id}-actions.png"
+            filename = f"/mnt/nvme/plots/{str(data_buf['offset'])}-{id}-actions.png"
             
             os.makedirs(os.path.dirname(filename), exist_ok=True)
             plt.savefig(filename)
