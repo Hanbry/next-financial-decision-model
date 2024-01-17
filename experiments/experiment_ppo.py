@@ -136,7 +136,7 @@ def train(data):
                 summary_writer = eval_summary_writer,
                 summary_prefix = 'Metrics'
             )
-            eval_env.render()
+            eval_env.render(mode='human')
             print("evaluation complete")
 
         start_time = time.time()
