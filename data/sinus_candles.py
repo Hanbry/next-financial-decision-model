@@ -20,7 +20,7 @@ for i in range(num_candles):
     close_price = sin_data[i]
     high_price = max(sin_data[i], sin_data[i - 1])
     low_price = min(sin_data[i], sin_data[i - 1])
-    volume = np.random.randint(1000, 5000)
+    volume = 0 # np.random.randint(1000, 5000)
     time_utc = int(time.timestamp())  # Konvertiere das Datum in einen Unix-Zeitstempel
     data.append([open_price, close_price, high_price, low_price, volume, time_utc])
 

@@ -136,6 +136,7 @@ def train(data):
                 summary_writer = eval_summary_writer,
                 summary_prefix = 'Metrics'
             )
+            eval_env.render()
             print("evaluation complete")
 
         start_time = time.time()
@@ -153,7 +154,6 @@ def train(data):
             train_metric.tf_summaries(train_step = global_step, step_metrics = step_metrics)
 
         if global_step_val % log_interval == 0:
-            train_env.render()
             print('step =', global_step_val, 'loss =', total_loss.numpy())
             steps_per_sec = (global_step_val - timed_at_step) / (collect_time + train_time)
             print(steps_per_sec, ' steps/sec')

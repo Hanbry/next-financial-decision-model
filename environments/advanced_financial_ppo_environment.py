@@ -27,9 +27,10 @@ maximum_steps = 1000
 image_data_queue = Queue()
 
 class FinancialEnvironment(py_environment.PyEnvironment):
-    def __init__(self, data):
+    def __init__(self, data, capture_mode = False):
         super(FinancialEnvironment, self).__init__()
         self.render_buf = []
+        self.capture_mode = capture_mode
 
         self.df = data
         self.current_step = 0
@@ -172,7 +173,8 @@ class FinancialEnvironment(py_environment.PyEnvironment):
     def _soft_reset(self):
         # print("internally resetting environment")
         self._render_offset = self._start_offset
-        self.prepare_render_data()
+        if self.capture_mode:
+            self.prepare_render_data()
 
         self._start_offset = np.random.randint(1, len(self.df)-1-maximum_steps)
         self.step_counter = 0
@@ -270,10 +272,10 @@ class FinancialEnvironment(py_environment.PyEnvironment):
         pass
 
 def create_environment(data, num_parallel_environments):
-    eval_env = tf_py_environment.TFPyEnvironment(FinancialEnvironment(data))
+    eval_env = tf_py_environment.TFPyEnvironment(FinancialEnvironment(data, capture_mode=True))
     train_env = tf_py_environment.TFPyEnvironment(
         parallel_py_environment.ParallelPyEnvironment(
-            [lambda: FinancialEnvironment(data) for _ in range(num_parallel_environments)]
+            [lambda: FinancialEnvironment(data, capture_mode=False) for _ in range(num_parallel_environments)]
         )
     )
 
