@@ -19,10 +19,10 @@ import models.ppo_actor_critic_model as ppo_actor_critic_model
 
 # Configure hyperparameters
 num_environment_steps = 25000000  # Number of training steps
-collect_episodes_per_iteration = 2  # Number of episodes to collect per iteration
-replay_buffer_capacity = 1001  # Replay buffer capacity
+collect_episodes_per_iteration = 30  # Number of episodes to collect per iteration
+replay_buffer_capacity = 10001  # Replay buffer capacity
 learning_rate = 1e-3  # Learning rate
-num_parallel_environments = 1
+num_parallel_environments = 50
 num_epochs = 25
 num_eval_episodes = 10
 summary_interval = 50
