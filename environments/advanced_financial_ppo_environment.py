@@ -28,18 +28,50 @@ maximum_steps = 1000
 image_data_queue = Queue()
 
 class FinancialEnvironment(py_environment.PyEnvironment):
-    def __init__(self, data, capture_mode = False):
+    def __init__(self, data, window_size, capture_mode = False):
         super(FinancialEnvironment, self).__init__()
         self.render_buf = []
         self.capture_mode = capture_mode
 
         self.df = data
+        self.window_size = window_size
+
         self.current_step = 0
-        self._start_offset = np.random.randint(1, len(data)-1-maximum_steps)
+        self._start_offset = np.random.randint(window_size+1, len(data)-1-maximum_steps)
         self._render_offset = self._start_offset
         self.step_counter = 0
         self.current_step = self._start_offset
         self.steps_beyond_done = None
+
+        self.data_window = []
+
+        # Normalize values
+        min_open = np.min(self.df.loc[self.current_step - 1 - self.window_size : self.current_step - 1, 'open'])
+        max_open = np.max(self.df.loc[self.current_step - 1 - self.window_size : self.current_step - 1, 'open'])
+        min_close = np.min(self.df.loc[self.current_step - 1 - self.window_size : self.current_step - 1, 'close'])
+        max_close = np.max(self.df.loc[self.current_step - 1 - self.window_size : self.current_step - 1, 'close'])
+        min_high = np.min(self.df.loc[self.current_step - 1 - self.window_size : self.current_step - 1, 'high'])
+        max_high = np.max(self.df.loc[self.current_step - 1 - self.window_size : self.current_step - 1, 'high'])
+        min_low = np.min(self.df.loc[self.current_step - 1 - self.window_size : self.current_step - 1, 'low'])
+        max_low = np.max(self.df.loc[self.current_step - 1 - self.window_size : self.current_step - 1, 'low'])
+        min_volume = np.min(self.df.loc[self.current_step - 1 - self.window_size : self.current_step - 1, 'volume'])
+        max_volume = np.max(self.df.loc[self.current_step - 1 - self.window_size : self.current_step - 1, 'volume'])
+
+        self.data_window = np.empty((self.window_size, 9), dtype = np.float32)
+        for i in range(self.window_size):
+            cur_idx = self.current_step - self.window_size + i
+            candle = np.array([
+                (self.df.loc[cur_idx, 'open'] - min_open) / (max_open - min_open),
+                (self.df.loc[cur_idx, 'close'] - min_close) / (max_close - min_close),
+                (self.df.loc[cur_idx, 'high'] - min_high) / (max_high - min_high),
+                (self.df.loc[cur_idx, 'low'] - min_low) / (max_low - min_low),
+                (self.df.loc[cur_idx, 'volume'] - min_volume) / (max_volume - min_volume) if self.df.loc[cur_idx, 'volume'] else 0,
+                self.df.loc[cur_idx, 'time'],
+                0,
+                0,
+                1
+            ], dtype=np.float32)
+            self.data_window[i,:] = candle
 
         # initialize variables to keep track of trades
         self.buy_price = 0
@@ -58,20 +90,44 @@ class FinancialEnvironment(py_environment.PyEnvironment):
         self.sell_idxs = []
         self._render_buy_idxs = []
         self._render_sell_idxs = []
-    
-    def _next_observation(self):
-        obs = np.empty(6, dtype=np.float32)
-        cur_idx = self.current_step
-        obs = np.array([
-            self.df.loc[cur_idx, 'open'],
-            self.df.loc[cur_idx, 'close'],
-            self.df.loc[cur_idx, 'high'],
-            self.df.loc[cur_idx, 'low'],
-            self.df.loc[cur_idx, 'volume'] if self.df.loc[cur_idx, 'volume'] else 0,
-            self.df.loc[cur_idx, 'time']
-        ], dtype = np.float32)
 
-        return obs
+    def _next_observation(self):
+        obs = np.empty(9, dtype=np.float32)
+        cur_idx = self.current_step
+
+        # Hot one encoding for self.last_action
+        buy_flag = 1 if self.last_action == Action.BUY else 0
+        sell_flag = 1 if self.last_action == Action.SELL else 0
+        hold_flag = 1 if self.last_action == Action.HOLD else 0
+
+        # Normalize values
+        min_open = np.min(self.df.loc[cur_idx - 1 - self.window_size : cur_idx, 'open'])
+        max_open = np.max(self.df.loc[cur_idx - 1 - self.window_size : cur_idx - 1, 'open'])
+        min_close = np.min(self.df.loc[cur_idx - 1 - self.window_size : cur_idx - 1, 'close'])
+        max_close = np.max(self.df.loc[cur_idx - 1 - self.window_size : cur_idx - 1, 'close'])
+        min_high = np.min(self.df.loc[cur_idx - 1 - self.window_size : cur_idx - 1, 'high'])
+        max_high = np.max(self.df.loc[cur_idx - 1 - self.window_size : cur_idx - 1, 'high'])
+        min_low = np.min(self.df.loc[cur_idx - 1 - self.window_size : cur_idx - 1, 'low'])
+        max_low = np.max(self.df.loc[cur_idx - 1 - self.window_size : cur_idx - 1, 'low'])
+        min_volume = np.min(self.df.loc[cur_idx - 1 - self.window_size : cur_idx - 1, 'volume'])
+        max_volume = np.max(self.df.loc[cur_idx - 1 - self.window_size : cur_idx - 1, 'volume'])
+
+        obs = np.array([
+            (self.df.loc[cur_idx, 'open'] - min_open) / (max_open - min_open),
+            (self.df.loc[cur_idx, 'close'] - min_close) / (max_close - min_close),
+            (self.df.loc[cur_idx, 'high'] - min_high) / (max_high - min_high),
+            (self.df.loc[cur_idx, 'low'] - min_low) / (max_low - min_low),
+            (self.df.loc[cur_idx, 'volume'] - min_volume) / (max_volume - min_volume) if self.df.loc[cur_idx, 'volume'] else 0,
+            self.df.loc[cur_idx, 'time'],
+            buy_flag,
+            sell_flag,
+            hold_flag
+        ], dtype=np.float32)
+
+        self.data_window = np.roll(self.data_window, -1, axis=0)
+        self.data_window[-1] = obs
+
+        return self.data_window
 
     def _take_action(self, action):
         current_price = self.df.loc[self.current_step, "close"]
@@ -229,7 +285,7 @@ class FinancialEnvironment(py_environment.PyEnvironment):
         return ts.restart(self._next_observation())
 
     def observation_spec(self):
-        return tf_agents.specs.BoundedArraySpec(shape=(6,), dtype=np.float32, minimum=0, maximum=np.inf, name='observation')
+        return tf_agents.specs.BoundedArraySpec(shape=(self.window_size, 9), dtype=np.float32, minimum=0, maximum=np.inf, name='observation')
 
     def action_spec(self):
         return tf_agents.specs.BoundedTensorSpec(shape=(), dtype=np.int32, minimum=0, maximum=len(Action)-2, name='action')
@@ -274,10 +330,10 @@ class FinancialEnvironment(py_environment.PyEnvironment):
         pass
 
 def create_environment(data, num_parallel_environments):
-    eval_env = tf_py_environment.TFPyEnvironment(FinancialEnvironment(data, capture_mode=True))
+    eval_env = tf_py_environment.TFPyEnvironment(FinancialEnvironment(data, window_size = 20, capture_mode=True))
     train_env = tf_py_environment.TFPyEnvironment(
         parallel_py_environment.ParallelPyEnvironment(
-            [lambda: FinancialEnvironment(data, capture_mode=False) for _ in range(num_parallel_environments)]
+            [lambda: FinancialEnvironment(data, window_size = 20, capture_mode = False) for _ in range(num_parallel_environments)]
         )
     )
 
