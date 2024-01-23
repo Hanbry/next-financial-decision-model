@@ -17,7 +17,7 @@ def create_model(env):
     value_net = value_rnn_network.ValueRnnNetwork(
         env.observation_spec(),
         input_fc_layer_params = value_fc_layers,
-        output_fc_layer_params = actor_fc_layers,
+        output_fc_layer_params = value_fc_layers,
         lstm_size = lstm_size
     )
 
