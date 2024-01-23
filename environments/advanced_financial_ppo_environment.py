@@ -24,8 +24,8 @@ class Action(Enum):
     HOLD = 2
     INITIAL = 3
 
-maximum_steps = 1000
-image_data_queue = Queue()
+maximum_steps = 700
+image_data_queue = Queue()   
 
 class FinancialEnvironment(py_environment.PyEnvironment):
     def __init__(self, data, window_size, capture_mode = False):
@@ -126,7 +126,6 @@ class FinancialEnvironment(py_environment.PyEnvironment):
 
         self.data_window = np.roll(self.data_window, -1, axis=0)
         self.data_window[-1] = obs
-
         return self.data_window
 
     def _take_action(self, action):
@@ -193,7 +192,7 @@ class FinancialEnvironment(py_environment.PyEnvironment):
         # reward -= trade_penalty
 
         # Apply holding penatly
-        reward -= self.steps_on_hold/maximum_steps
+        reward -= (self.steps_on_hold/maximum_steps) * 5.0
 
         return reward
 
@@ -203,8 +202,8 @@ class FinancialEnvironment(py_environment.PyEnvironment):
         current_price = self.df.loc[self.current_step, "close"]
         reward = self._calculate_reward(action, current_price)
         money_loss_condition = self.cum_profit <= -0.5
-        invalid_sequence_condition = (action == Action.BUY and self.last_action == Action.BUY) or (action == Action.SELL and self.last_action == Action.SELL) or (action == Action.SELL and self.last_action == Action.INITIAL)
-        early_termination = money_loss_condition or invalid_sequence_condition
+        #invalid_sequence_condition = (action == Action.BUY and self.last_action == Action.BUY) or (action == Action.SELL and self.last_action == Action.SELL) or (action == Action.SELL and self.last_action == Action.INITIAL)
+        early_termination = money_loss_condition #or invalid_sequence_condition
         self.current_step += 1
         self.step_counter += 1
         
